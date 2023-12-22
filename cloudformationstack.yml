@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  LambdaFunctionName:
+    Type: String
+    Default: lamda-invocation-function
+    Description: Name of the Lambda function
+
+Resources:
+  MyS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join
+        - "-"
+        - - "bucket-with-semi-random-name"
+          - !Select
+            - 0
+            - !Split
+              - "-"
+              - !Select
+                - 2
+                - !Split
+                  - "/"
+                  - !Ref "AWS::StackId"
+
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: LambdaS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:GetObject'
+                Resource: !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
+
+  MyLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Ref LambdaFunctionName
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.8
+      Timeout: 30
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref MyS3Bucket
+        S3Key: lambda_function.zip
+
+Outputs:
+  S3BucketName:
+    Value: !Ref MyS3Bucket
+    Description: The name of the created S3 bucket
+
+  LambdaFunctionArn:
+    Value: !GetAtt MyLambdaFunction.Arn
+    Description: The ARN of the created Lambda function
